@@ -57,45 +57,92 @@ runs and is tested locally without network or cloud credentials.
 Every stage skips outputs that already exist, so an interrupted run resumes where it stopped (`--force`
 recomputes).
 
-## Running locally
+## Running locally: one-time setup
 
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/). On Windows (PowerShell):
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and the
+   [Google Cloud CLI](https://cloud.google.com/sdk/docs/install). On Windows (PowerShell):
 
    ```powershell
-   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   winget install --id=astral-sh.uv -e
+   winget install --id=Google.CloudSDK -e
    ```
 
-2. Install the project with every extra (boosting libraries and Google Cloud client):
+   **Close and reopen PowerShell** afterwards, so it sees the new commands.
 
-   ```bash
+2. Authenticate to Google Cloud (weather comes from the BigQuery public dataset `noaa_gsod`):
+
+   ```powershell
+   gcloud auth application-default login                       # opens the browser
+   gcloud auth application-default set-quota-project <your-project-id>
+   gcloud config set project <your-project-id>                  # or set weather.gcp_project in a config file
+   ```
+
+   The BigQuery API must be enabled in that project. Queries on public datasets are billed to it; check
+   BigQuery pricing and the free tier for your account.
+
+3. From the project folder, install the project with every extra (boosting libraries and Google Cloud client)
+   and check the environment:
+
+   ```powershell
+   cd <path>\flight-delay-prediction-brazil
    uv sync --all-extras
    uv run flight-delay check-env
    ```
 
-   `uv sync` creates `uv.lock`; commit it so every run uses the same library versions.
+   Every line of `check-env` should read `ok`.
 
-3. Configure Google Cloud once (weather comes from the BigQuery public dataset `noaa_gsod`):
+## Day-to-day usage
 
-   1. Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install).
-   2. `gcloud auth application-default login` (opens the browser; creates Application Default Credentials).
-   3. `gcloud config set project <your-project-id>`, or set `weather.gcp_project` in a config file.
-   4. Make sure the BigQuery API is enabled in that project. Queries on public datasets are billed to it;
-      check BigQuery pricing and the free tier for your account.
+### How it works
 
-4. Run:
+- **uv** manages the Python environment: it reads the dependencies from `pyproject.toml`, pins the exact
+  versions in `uv.lock` and installs everything in `.venv` inside the project. There is nothing to activate:
+  any command prefixed with `uv run` runs inside that environment.
+- **`flight-delay`** is the project command. It reads one or more YAML files from `configs/` and runs three
+  stages in order:
+  1. **etl**: downloads the ANAC CSVs, converts them to Parquet and fetches the weather from BigQuery;
+  2. **features**: builds the variables of every flight and draws the sample of each month;
+  3. **modeling**: trains the models, evaluates them and writes the report.
+- Each stage writes its output to `data/` and skips what already exists on the next run, so an interrupted run
+  can simply be started again without losing work.
 
-   ```bash
-   # quick validation: 2 months, small sample, fewer tuning/bootstrap iterations
-   uv run flight-delay run -c configs/base.yaml -c configs/test.yaml
+### Commands
 
-   # full experiment of the paper
-   uv run flight-delay run
+Always from the project folder:
 
-   # only some stages (e.g. re-model without touching the data)
-   uv run flight-delay run --stage modeling
-   ```
+```powershell
+git pull                      # get changes from GitHub
+uv sync --all-extras          # installs something only if the dependencies changed
 
-Outputs go to `data/` (git-ignored).
+uv run flight-delay run -c configs/base.yaml -c configs/test.yaml   # quick test: 2 months
+uv run flight-delay run                                             # full experiment: 2024-2025
+uv run flight-delay run --stage modeling                            # re-model only, no downloads
+uv run flight-delay run --force                                     # recompute everything
+
+uv run flight-delay check-env   # library versions and missing extras
+uv run pytest                   # tests
+```
+
+`-c` accepts several files; each one overrides only the keys it lists. Without `-c`, `configs/base.yaml` is used.
+
+### Where the results are
+
+Each run creates a folder in `data/08_reporting/` whose name describes its parameters, e.g.
+`data/08_reporting/thr30_n3000_rs42_by_day_2025/` for the quick test. It contains the figures (`.png`), the
+tables as CSV, `tabelas_modelagem.tex` to paste into the paper and `summary.json` with the configuration used.
+The other layers (`01_raw` to `07_model_output`) are described in [`data/README.md`](data/README.md).
+
+### Changing parameters
+
+Do not edit `configs/base.yaml`. Create a file with only what changes, e.g. `configs/threshold15.yaml`:
+
+```yaml
+scope:
+  delay_threshold_min: 15
+```
+
+and run `uv run flight-delay run -c configs/base.yaml -c configs/threshold15.yaml`. The threshold is part of the
+file names, so results with 15 and 30 minutes sit side by side instead of overwriting each other.
 
 ## Running on Google Colab
 
