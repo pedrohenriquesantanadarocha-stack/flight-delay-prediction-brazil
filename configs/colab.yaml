@@ -1,0 +1,4 @@
+# Google Colab: data layers persist in Google Drive; raw CSVs go to the fast local disk.
+paths:
+  data_root: /content/drive/MyDrive/Dados_ANAC
+  raw_tmp: /content/tmp_anac_raw

@@ -1,0 +1,61 @@
+# Base configuration: the full experiment of the paper.
+# Profiles (e.g. test.yaml) are deep-merged on top of this file:
+#   flight-delay run --config configs/base.yaml --config configs/test.yaml
+
+paths:
+  data_root: data              # Colab: /content/drive/MyDrive/Dados_ANAC (see configs/colab.yaml)
+  raw_tmp: null                # where raw CSVs are downloaded; null = <data_root>/01_raw
+
+storage:
+  format: parquet              # parquet | pickle
+
+source:
+  anac_base_url: "https://sistemas.anac.gov.br/dadosabertos/Voos e operações aéreas/Voo Regular Ativo (VRA)"
+  timeout_s: 120
+  retries: 3
+  keep_raw: false              # false: delete the raw CSV once the typed Parquet exists
+
+scope:
+  years: [2024, 2025]
+  months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  delay_threshold_min: 30      # keep the same value across the whole paper (15 or 30)
+  max_flights_per_month: 20000 # null = use every flight
+  random_state: 42
+
+weather:
+  gcp_project: null            # null = project from Application Default Credentials
+  gcp_project_fallback: imet-509903
+
+modeling:
+  split_strategy: by_day       # by_day | temporal | random
+  test_size: 0.2
+  cv_folds: 5
+  n_jobs: -1
+  models:
+    - dummy
+    - logistic_regression
+    - decision_tree
+    - random_forest
+    - extra_trees
+    - hist_gradient_boosting
+    - xgboost
+    - lightgbm
+  reference_model: logistic_regression
+  target_encoding_smoothing: 10.0
+  balance_classes: true        # class_weight / scale_pos_weight (probabilities are no longer calibrated)
+  tuning:
+    enabled: true
+    n_iter: 10
+    cv: 3
+    max_sample: 120000
+    scoring: average_precision
+
+evaluation:
+  beta: 2.0                    # F-beta > 1 favours recall
+  recall_target: 0.70
+  cost_ratio_fn_fp: 3.0        # one false negative costs X false positives
+  n_boot: 200                  # 0 disables bootstrap CIs
+  n_diagnostic_sample: 30000
+  n_permutation_repeats: 5
+  learning_curve: true
+  top_k: 0.10
