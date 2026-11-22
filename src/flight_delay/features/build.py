@@ -23,7 +23,7 @@ def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
     out["year"] = dep.dt.year
     out["month"] = dep.dt.month
     out["dep_hour"] = dep.dt.hour
-    out["day_of_week"] = dep.dt.day_of_week  # 0 = Monday
+    out["day_of_week"] = dep.dt.dayofweek  # 0 = Monday
     out["high_season"] = out["month"].isin(HIGH_SEASON_MONTHS).astype(int)
     out["weekend"] = (out["day_of_week"] >= 5).astype(int)
     for name, value, period in (("hour", out["dep_hour"], 24),

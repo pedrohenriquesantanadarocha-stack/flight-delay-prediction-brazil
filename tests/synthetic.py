@@ -35,7 +35,7 @@ def weather_frame(airports, year: int) -> pd.DataFrame:
             continue
         for d in days:
             rng = np.random.default_rng(_seed(a, d.toordinal(), "w"))
-            t = 22 + 6 * np.sin(2 * np.pi * (d.day_of_year - 20) / 365) + rng.normal(0, 2)
+            t = 22 + 6 * np.sin(2 * np.pi * (d.dayofyear - 20) / 365) + rng.normal(0, 2)
             rows.append({"airport_icao": a, "date": d.strftime("%Y-%m-%d"),
                          "temp_mean_c": round(t, 1), "dewpoint_c": round(t - abs(rng.normal(5, 2)), 1),
                          "temp_max_c": round(t + 5, 1), "temp_min_c": round(t - 5, 1),
