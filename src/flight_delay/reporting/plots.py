@@ -151,6 +151,12 @@ PDP_CANDIDATES = ("origin_wind_speed_kmh", "destination_wind_speed_kmh", "origin
 
 
 def partial_dependence(model, X_te, features, random_state: int, fw: FigureWriter):
+    """One panel per variable, averaged over the test flights where that variable is observed.
+
+    scikit-learn builds the grid from percentiles of the column; a single missing value
+    (e.g. an airport without a weather station) turns the whole grid into NaN and the
+    panel comes out empty. All panels share the y axis so effects stay comparable.
+    """
     cand = [c for c in PDP_CANDIDATES if c in features]
     if not cand:
         return None
@@ -158,12 +164,25 @@ def partial_dependence(model, X_te, features, random_state: int, fw: FigureWrite
     ncols = min(3, len(cand))
     nrows = int(np.ceil(len(cand) / 3))
     fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 3.2 * nrows), squeeze=False)
-    disp = PartialDependenceDisplay.from_estimator(
-        model, sample, cand, kind="average", grid_resolution=25, percentiles=(0.02, 0.98),
-        ax=axes.ravel()[: len(cand)], line_kw={"color": CATEGORICAL[0]})
-    for a, c in zip(disp.axes_.ravel(), cand):
-        a.set_ylabel("Prob. média de atraso")
-        a.set_xlabel(label(c))
+    for ax in axes.ravel()[len(cand):]:
+        ax.axis("off")
+    for ax, c in zip(axes.ravel(), cand):
+        observed = sample[sample[c].notna()]
+        if observed[c].nunique() < 2:
+            ax.text(0.5, 0.5, "sem variação observada", ha="center", va="center", transform=ax.transAxes,
+                    color=MUTED, fontsize=8)
+        else:
+            PartialDependenceDisplay.from_estimator(
+                model, observed, [c], kind="average", grid_resolution=25, percentiles=(0.02, 0.98),
+                ax=[ax], line_kw={"color": CATEGORICAL[0]})  # a list: draw in this axes, no sub-grid
+        ax.set_ylabel("Prob. média de atraso")
+        ax.set_xlabel(label(c))
+    ys = np.concatenate([ln.get_ydata() for ax in axes.ravel() for ln in ax.get_lines()] or [np.array([])])
+    ys = ys[np.isfinite(ys)]
+    if ys.size:
+        pad = 0.05 * max(ys.max() - ys.min(), 1e-3)
+        for ax in axes.ravel()[: len(cand)]:
+            ax.set_ylim(ys.min() - pad, ys.max() + pad)
     fig.suptitle("Dependência parcial: probabilidade média de atraso", fontsize=10)
     return fw.save(fig, "dependencia_parcial.png")
 

@@ -78,3 +78,30 @@ def test_latex_uses_decimal_comma_and_escapes():
     df = pd.DataFrame({"PR-AUC": [0.2551], "IC": ["0.712 [0.700; 0.720]"]}, index=["Random_Forest"])
     tex = latex.table(df, "Legenda", "tab:x")
     assert "0,255" in tex and "0,712 [0,700; 0,720]" in tex and "Random\\_Forest" in tex
+
+
+def test_partial_dependence_survives_missing_weather(tmp_path):
+    """A missing value used to turn the whole PDP grid into NaN (empty panels)."""
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+
+    from flight_delay.reporting import plots
+
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame({"origin_wind_speed_kmh": rng.normal(12, 4, 800), "dep_hour": rng.integers(0, 24, 800) * 1.0,
+                      "origin_precip_mm": np.where(rng.random(800) < 0.6, 0.0, rng.gamma(1, 5, 800))})
+    y = (rng.random(800) < 0.2 + 0.02 * X["origin_precip_mm"].clip(0, 20)).astype(int)
+    model = make_pipeline(SimpleImputer(), LogisticRegression()).fit(X, y)
+    X.loc[X.sample(frac=0.1, random_state=0).index, ["origin_wind_speed_kmh", "origin_precip_mm"]] = np.nan
+    fw = plots.FigureWriter(tmp_path)
+    captured = {}
+    original_save = fw.save
+    fw.save = lambda fig, name: captured.setdefault("fig", fig) and original_save(fig, name)
+    plots.partial_dependence(model, X, list(X.columns), 0, fw)
+    panels = [ax for ax in captured["fig"].axes if ax.get_lines()]
+    assert len(panels) == 3
+    for ax in panels:
+        ydata = np.concatenate([ln.get_ydata() for ln in ax.get_lines()])
+        assert np.isfinite(ydata).any()
+    assert (tmp_path / "dependencia_parcial.png").exists()
