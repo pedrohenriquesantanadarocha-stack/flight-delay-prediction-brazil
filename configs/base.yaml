@@ -21,6 +21,7 @@ scope:
   delay_threshold_min: 30      # keep the same value across the whole paper (15 or 30)
   max_flights_per_month: 20000 # null = use every flight
   random_state: 42
+  max_abs_delay_min: null      # e.g. 10080 drops |delay| > 7 days (registration errors); null = keep all
 
 weather:
   gcp_project: null            # null = project from Application Default Credentials

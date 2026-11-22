@@ -45,12 +45,21 @@ class ScopeConfig:
     delay_threshold_min: int = 30
     max_flights_per_month: int | None = 20_000
     random_state: int = 42
+    max_abs_delay_min: int | None = None  # None = keep every realised flight (as in the paper)
+
+    @property
+    def feature_tag(self) -> str:
+        """Identifies the parameters that change the feature table."""
+        tag = f"thr{self.delay_threshold_min}"
+        if self.max_abs_delay_min is not None:
+            tag += f"_maxd{self.max_abs_delay_min}"
+        return tag
 
     @property
     def sample_tag(self) -> str:
         """Identifies the parameters that change the modelling sample."""
         n = "all" if self.max_flights_per_month is None else self.max_flights_per_month
-        return f"thr{self.delay_threshold_min}_n{n}_rs{self.random_state}"
+        return f"{self.feature_tag}_n{n}_rs{self.random_state}"
 
 
 @dataclass(frozen=True)
@@ -174,6 +183,8 @@ def validate(s: Settings) -> None:
         raise ValueError("modeling.split_strategy must be 'by_day', 'temporal' or 'random'")
     if not 0 < s.modeling.test_size < 1:
         raise ValueError("modeling.test_size must be in (0, 1)")
+    if s.scope.max_abs_delay_min is not None and s.scope.max_abs_delay_min <= 0:
+        raise ValueError("scope.max_abs_delay_min must be positive (or null to keep every flight)")
     bad_months = [m for m in s.scope.months if not 1 <= m <= 12]
     if bad_months:
         raise ValueError(f"scope.months out of range: {bad_months}")

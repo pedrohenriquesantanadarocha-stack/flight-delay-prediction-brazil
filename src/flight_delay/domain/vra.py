@@ -66,6 +66,21 @@ def standardize_vra(raw: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+IMPLAUSIBLE_DELAY_MIN = 7 * 24 * 60
+
+
+def count_implausible_delays(flights: pd.DataFrame, limit_min: float = IMPLAUSIBLE_DELAY_MIN) -> int:
+    """Flights whose |departure delay| exceeds `limit_min` (usually registration errors)."""
+    return int((flights[DELAY_MIN].abs() > limit_min).sum())
+
+
+def drop_extreme_delays(df: pd.DataFrame, max_abs_delay_min: float | None) -> pd.DataFrame:
+    """Remove flights with |delay| above the limit; None keeps every flight."""
+    if max_abs_delay_min is None:
+        return df
+    return df[df[DELAY_MIN].abs() <= max_abs_delay_min].reset_index(drop=True)
+
+
 def clean_flights(df: pd.DataFrame, year: int, month: int) -> pd.DataFrame:
     """Realised flights scheduled in (year, month), with the departure delay (primary layer).
 

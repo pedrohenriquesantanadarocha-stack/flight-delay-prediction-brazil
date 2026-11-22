@@ -66,3 +66,33 @@ def test_catalog_roundtrip_is_atomic(tmp_path):
     cat.write("primary", "x/y", df)
     assert cat.read("primary", "x/y").equals(df)
     assert not list(tmp_path.rglob("*.part"))
+
+
+class TypoFlightSource(FakeFlightSource):
+    """Injects one flight with |delay| of about a month into every file."""
+
+    def download_month(self, year, month, dest_dir):
+        from synthetic import vra_frame, write_vra_csv
+
+        raw = vra_frame(year, month, self.n)
+        i = raw.index[raw["Partida Real"].notna()][5]
+        ts = pd.to_datetime(raw.loc[i, "Partida Real"], dayfirst=True) + pd.Timedelta(days=31)
+        raw.loc[i, "Partida Real"] = ts.strftime("%d/%m/%Y %H:%M")
+        return write_vra_csv(raw, dest_dir / f"VRA_{year}{month}.csv")
+
+
+def test_extreme_delays_kept_by_default_and_dropped_on_request(settings_factory, caplog):
+    keep = settings_factory()
+    cat = make_catalog(keep)
+    with caplog.at_level("WARNING"):
+        run_etl(keep, cat, TypoFlightSource(600), FakeWeatherSource())
+    assert "with |delay| > 7 days kept" in caplog.text
+    run_features(keep, cat)
+    all_flights = cat.read("feature", "flights/features_2025_01_thr30")
+    assert (all_flights["departure_delay_min"] > 7 * 1440).sum() == 1
+
+    drop = settings_factory(scope={"max_abs_delay_min": 10080})
+    run_features(drop, cat)
+    filtered = cat.read("feature", "flights/features_2025_01_thr30_maxd10080")
+    assert len(filtered) == len(all_flights) - 1
+    assert cat.exists("model_input", f"samples/sample_2025_01_{drop.scope.sample_tag}")

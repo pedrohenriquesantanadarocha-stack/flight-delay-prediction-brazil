@@ -73,3 +73,21 @@ def test_sampling_is_reproducible_and_capped():
 def test_anac_url_has_no_leading_zero_in_file_name():
     url = AnacVraSource("https://x/VRA").url(2017, 8)
     assert url.endswith("/2017/08%20-%20Agosto/VRA_20178.csv")
+
+
+def _with_month_typo(n=300):
+    """One flight whose actual departure was typed one month later (seen in ANAC Jan/2025)."""
+    raw = vra_frame(2025, 1, n)
+    i = raw.index[raw["Partida Real"].notna()][5]
+    ts = pd.to_datetime(raw.loc[i, "Partida Real"], dayfirst=True) + pd.Timedelta(days=31)
+    raw.loc[i, "Partida Real"] = ts.strftime("%d/%m/%Y %H:%M")
+    return clean_flights(standardize_vra(raw), 2025, 1)
+
+
+def test_month_typo_is_counted_but_kept_by_default():
+    from flight_delay.domain.vra import count_implausible_delays, drop_extreme_delays
+
+    f = _with_month_typo()
+    assert count_implausible_delays(f) == 1
+    assert len(drop_extreme_delays(f, None)) == len(f)
+    assert len(drop_extreme_delays(f, 7 * 24 * 60)) == len(f) - 1

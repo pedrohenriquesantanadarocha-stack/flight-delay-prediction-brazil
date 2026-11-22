@@ -41,3 +41,12 @@ def test_settings_are_immutable():
     s = Settings()
     with pytest.raises(AttributeError):
         s.scope.years = (2020,)
+
+
+def test_delay_filter_changes_the_tags():
+    s = settings_from_dict({"scope": {"max_abs_delay_min": 10080}})
+    assert s.scope.feature_tag == "thr30_maxd10080"
+    assert s.scope.sample_tag == "thr30_maxd10080_n20000_rs42"
+    assert Settings().scope.feature_tag == "thr30"
+    with pytest.raises(ValueError):
+        settings_from_dict({"scope": {"max_abs_delay_min": 0}})

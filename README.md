@@ -126,6 +126,10 @@ LaTeX formatting and resuming an interrupted run.
 
 - **Target:** departure delay ≥ `scope.delay_threshold_min` minutes (30 by default). Flights without an actual
   departure (e.g. cancelled) are removed.
+- **Extreme delays are kept**, as in the paper. ANAC files contain a few registration errors (e.g. Jan/2025:
+  one flight whose actual departure was typed one month later); the ETL logs how many flights have
+  |delay| > 7 days. Set `scope.max_abs_delay_min` (e.g. `10080`) to drop them for a sensitivity analysis; the
+  feature and sample files then get a `_maxd<limit>` suffix, so both versions coexist.
 - **Weather:** GSOD values are **daily means of the same day** (origin: departure day; destination: arrival day).
   They include hours after the departure, so the model assumes a perfect weather forecast for the day.
 - **Traffic:** `origin_hourly_flow` counts scheduled departures per airport, day and hour on the *full* month,

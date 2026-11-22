@@ -10,7 +10,7 @@ from ..adapters.anac import read_vra_csv
 from ..adapters.storage import DataCatalog
 from ..config import Settings
 from ..domain.schemas import validate
-from ..domain.vra import clean_flights, standardize_vra
+from ..domain.vra import IMPLAUSIBLE_DELAY_MIN, clean_flights, count_implausible_delays, standardize_vra
 from ..domain.weather import standardize_weather
 from ..ports import FlightDataSource, WeatherSource
 
@@ -50,6 +50,10 @@ def ingest_month(year: int, month: int, settings: Settings, catalog: DataCatalog
     if flights.empty:
         log.warning("[%d-%02d] no valid flight (check date format/columns)", year, month)
         return False
+    n_bad = count_implausible_delays(flights)
+    if n_bad:
+        log.warning("[%d-%02d] %d flight(s) with |delay| > %d days kept (set scope.max_abs_delay_min to drop)",
+                    year, month, n_bad, IMPLAUSIBLE_DELAY_MIN // 1440)
     catalog.write("primary", flights_name(year, month), flights)
     log.info("[%d-%02d] raw %s | realised in month %s", year, month, f"{len(typed):,}", f"{len(flights):,}")
     return True

@@ -11,14 +11,15 @@ from ..config import Settings
 from ..domain.columns import TARGET
 from ..domain.sampling import sample_per_month
 from ..domain.schemas import validate
+from ..domain.vra import drop_extreme_delays
 from ..features.build import build_month_features
 from .etl import flights_name, weather_name
 
 log = logging.getLogger(__name__)
 
 
-def feature_name(year: int, month: int, threshold: int) -> str:
-    return f"flights/features_{year}_{month:02d}_thr{threshold}"
+def feature_name(year: int, month: int, tag: str) -> str:
+    return f"flights/features_{year}_{month:02d}_{tag}"
 
 
 def sample_name(year: int, month: int, tag: str) -> str:
@@ -47,14 +48,20 @@ def run_features(settings: Settings, catalog: DataCatalog, force: bool = False) 
             if catalog.exists("model_input", s_name) and not force:
                 samples.append(s_name)
                 continue
-            f_name = feature_name(year, month, scope.delay_threshold_min)
+            f_name = feature_name(year, month, scope.feature_tag)
             if catalog.exists("feature", f_name) and not force:
                 feats = catalog.read("feature", f_name)
             else:
                 if weather is None:
                     weather = _weather_for(scope.years, catalog)
                 flights = catalog.read("primary", flights_name(year, month))
-                feats = validate(build_month_features(flights, weather, scope.delay_threshold_min), "model_input")
+                # Traffic counts every scheduled flight, so the optional filter comes after it
+                feats = build_month_features(flights, weather, scope.delay_threshold_min)
+                kept = drop_extreme_delays(feats, scope.max_abs_delay_min)
+                if len(kept) < len(feats):
+                    log.info("[%d-%02d] %d flight(s) dropped: |delay| > %d min", year, month,
+                             len(feats) - len(kept), scope.max_abs_delay_min)
+                feats = validate(kept, "model_input")
                 catalog.write("feature", f_name, feats)
             sample = sample_per_month(feats, scope.max_flights_per_month, scope.random_state)
             catalog.write("model_input", s_name, sample)
