@@ -1,0 +1,5 @@
+# Normalise line endings in the repository (Windows checkouts get CRLF locally)
+* text=auto eol=lf
+*.png binary
+*.parquet binary
+*.pkl binary

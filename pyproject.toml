@@ -1,0 +1,51 @@
+[project]
+name = "flight-delay"
+version = "0.2.0"
+description = "Predicting 30+ min departure delays of Brazilian commercial flights with ANAC VRA data and NOAA GSOD weather."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+    "scikit-learn>=1.4",   # TargetEncoder (>=1.3) and stable StratifiedGroupKFold
+    "matplotlib>=3.7",
+    "pyarrow>=14",         # Parquet storage of the data layers
+    "pandera>=0.20",       # data contracts between layers
+    "pyyaml>=6",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+boosting = ["xgboost>=2.0", "lightgbm>=4.0"]
+gcp = ["google-cloud-bigquery>=3.11", "db-dtypes>=1.1", "google-auth>=2.20"]
+all = ["flight-delay[boosting,gcp]"]
+
+[project.scripts]
+flight-delay = "flight_delay.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/flight_delay"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B905"]  # zip() without strict=: lengths are equal by construction
+
+[tool.ruff.lint.isort]
+known-first-party = ["flight_delay"]
+known-local-folder = ["synthetic", "conftest"]

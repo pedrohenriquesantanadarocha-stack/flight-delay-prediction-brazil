@@ -1,0 +1,15 @@
+# Short run to validate the environment in a few minutes (old MODO_TESTE = True).
+scope:
+  years: [2025]
+  months: [1, 2]
+  max_flights_per_month: 3000
+
+modeling:
+  cv_folds: 3
+  tuning:
+    n_iter: 3
+
+evaluation:
+  n_boot: 30
+  n_diagnostic_sample: 3000
+  n_permutation_repeats: 2
